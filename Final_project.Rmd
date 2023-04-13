@@ -1,0 +1,56 @@
+---
+title: "finalProject"
+output:
+  pdf_document: default
+  html_document: default
+date: "2023-04-09"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(rvest)
+library(dplyr)
+library(readxl)
+```
+
+## 
+
+```{r salary}
+url_salary <- 'https://hoopshype.com/salaries/players/2021-2022/'
+webpage_salary <- read_html(url)
+df.salary <- html_table(webpage_salary, fill = TRUE)
+names(df.salary) <- df.salary[1,]
+df.salary<- df.salary[-1,]
+df.salary <- select(df.salary, -1)
+```
+
+
+```{r stats}
+df.stats <- read_excel('Player_stat_data.xlsx')
+head(df.stats)
+
+position <- select(df.stats, Pos) 
+df.stats <- select(df.stats, -Pos)
+age <- select(df.stats, Age) 
+df.stats <- select(df.stats, -Age)
+tm <- select(df.stats, Tm) 
+df.stats <- select(df.stats, -Tm)
+```
+
+```{r consolidate}
+consolidate.df %>%
+  group_by(Rk, Player) %>%
+  summarize(c(G, GS, MP, FG, FGA, FG%, 3P, 3PA, 3P%, 2P, 2PA, 2P%,eFG%, FT, FTA, FT%,ORB, DRB, TRB, AST, STL, BLK, TOV, PF, PTS))
+
+
+```
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
