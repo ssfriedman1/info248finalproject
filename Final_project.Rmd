@@ -70,5 +70,5 @@ abline(lm(merged.player.data$salary ~ merged.player.data$FG))
 
 ddd
 ```
-
+jon added
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
