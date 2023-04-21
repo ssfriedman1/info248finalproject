@@ -68,6 +68,7 @@ plot(merged.player.data$FG, merged.player.data$salary)
 abline(lm(merged.player.data$salary ~ merged.player.data$FG))
 plot(merged.player.data$G, merged.player.data$salary)
 hist(merged.player.data$salary, nclass = 100)
+summary(merged.player.data$salary)
 ```
 jon added
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
