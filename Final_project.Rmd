@@ -66,9 +66,14 @@ merged.player.data <- merge(salary_table, df.stats.distinct, by = "Player", all 
 ```{r}
 plot(merged.player.data$FG, merged.player.data$salary)
 abline(lm(merged.player.data$salary ~ merged.player.data$FG))
-plot(merged.player.data$G, merged.player.data$salary)
-hist(merged.player.data$salary, nclass = 100)
-summary(merged.player.data$salary)
+
+
+plot(merged.player.data$`eFG%`, merged.player.data$salary)
+hist(merged.player.data$`eFG%`)
+abline(lm(merged.player.data$`eFG%`))
+
+hist(merged.player.data$`3P%`)
+abline(lm(merged.player.data$`3P%`))
 ```
 jon added
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
