@@ -15,65 +15,88 @@ library(readxl)
 ```
 
 ## 
+1. Reading in the data 
+2. Cleaning the data
+3. Merging the data
+4. Initial analysis/ Graphing
+  - Correlation of all to salary
+  - Correlation between predictors
+5. Initial modeling techniques
+6. Cross validation and model evalulation techniques
+7. Separating Salary Outliers and retesting the models to check performance
+8. TBD
 
-```{r salary}
+
+## 1. Reading in the Data
+```{r Reading in the Data}
 url_salary <- 'https://hoopshype.com/salaries/players/2021-2022/'
 x_path <- '//*[@id="content-container"]/div/div[3]/div[2]/table'
 salary_table <- url_salary %>%
   read_html() %>%
   html_element(xpath = x_path) %>%
   html_table()
+
+df.stats <- read_excel('Player_stat_data.xlsx')
 ```
 
-```{r}
+## 2. Cleaning the data
+```{r Cleaning the dataframes}
+# For Salary
 colnames(salary_table) <- as.character(salary_table[1,])
 salary_table <- salary_table[-1,]
 salary_table <- subset(salary_table, select  = -ncol(salary_table))
-```
-
-```{r}
 salary_table <- subset(salary_table, select = -which(names(salary_table) == "NA"))
 salary_table$`2021/22`<- gsub("\\$", "", salary_table$`2021/22`)
 salary_table$`2021/22`<- gsub(",", "", salary_table$`2021/22`)
 names(salary_table)[names(salary_table) == "2021/22"] <- "salary"
 salary_table$salary <- as.numeric(salary_table$salary)
                                 
-```
-
-```{r stats}
-df.stats <- read_excel('Player_stat_data.xlsx')
-head(df.stats)
-
-position <- select(df.stats, Pos) 
-df.stats <- select(df.stats, -Pos)
+# For Player Stats
 age <- select(df.stats, Age) 
 df.stats <- select(df.stats, -Age)
 tm <- select(df.stats, Tm) 
 df.stats <- select(df.stats, -Tm)
-```
-
-```{r distinct player occurence}
 df.stats.distinct <- df.stats %>% 
   distinct(Player, .keep_all = TRUE)
 ```
 
-```{r}
+## 3. Merging the data
+```{r Merging the Data}
 merged.player.data <- merge(salary_table, df.stats.distinct, by = "Player", all = FALSE)
 ```
-## Including Plots
 
 
-```{r}
+
+## 4 Exploratory Data Analysis
+Plan:
+- Look to graph all the features to understand their distribution and relation to salary
+- Use histogram and plot to do this, and look up for some more creative plots: https://r-graph-gallery.com/ggplot2-package.html
+- Build a correlation matrix of the data with each other and with salary using heatmap: https://r-graph-gallery.com/heatmap
+
+https://cran.r-project.org/web/packages/vtable/vignettes/sumtable.html for summary stats
+- 
+```{r EDA}
+
 plot(merged.player.data$FG, merged.player.data$salary)
 abline(lm(merged.player.data$salary ~ merged.player.data$FG))
 
 
 plot(merged.player.data$`eFG%`, merged.player.data$salary)
 hist(merged.player.data$`eFG%`)
-abline(lm(merged.player.data$`eFG%`))
-
+hist(merged.player.data$`2P%`)
 hist(merged.player.data$`3P%`)
-abline(lm(merged.player.data$`3P%`))
+
 ```
+
+## 5 Modeling
+- Tree
+- Logistic Regression
+- KNN
+- more
+
+## 6 Removing salary outliers and rerunning models 
+
+## 7 Comparing Model performance
+
 jon added
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
