@@ -12,6 +12,8 @@ editor_options:
 library(rvest)
 library(dplyr)
 library(readxl)
+library(tree)
+library(rpart)
 ```
 
 ## 
@@ -58,11 +60,21 @@ tm <- select(df.stats, Tm)
 df.stats <- select(df.stats, -Tm)
 df.stats.distinct <- df.stats %>% 
   distinct(Player, .keep_all = TRUE)
+colnames(df.stats.distinct)[colnames(df.stats.distinct) == "FG%"] <- "FGPerc"
+colnames(df.stats.distinct)[colnames(df.stats.distinct) == "3P%"] <- "ThreePPerc"
+colnames(df.stats.distinct)[colnames(df.stats.distinct) == "2P%"] <- "TwoPPerc"
+colnames(df.stats.distinct)[colnames(df.stats.distinct) == "eFG%"] <- "eFGPerc"
+colnames(df.stats.distinct)[colnames(df.stats.distinct) == "FT%"] <- "FTPerc"
+colnames(df.stats.distinct)[colnames(df.stats.distinct) == "3P"] <- "ThreePointers"
+colnames(df.stats.distinct)[colnames(df.stats.distinct) == "2P"] <- "TwoPointers"
+colnames(df.stats.distinct)[colnames(df.stats.distinct) == "3PA"] <- "ThreePointAvg"
+colnames(df.stats.distinct)[colnames(df.stats.distinct) == "2PA"] <- "TwoPointAvg"
 ```
 
 ## 3. Merging the data
 ```{r Merging the Data}
 merged.player.data <- merge(salary_table, df.stats.distinct, by = "Player", all = FALSE)
+
 ```
 
 
@@ -79,13 +91,16 @@ https://cran.r-project.org/web/packages/vtable/vignettes/sumtable.html for summa
 
 plot(merged.player.data$FG, merged.player.data$salary)
 abline(lm(merged.player.data$salary ~ merged.player.data$FG))
+plot(merged.player.data$eFGPerc, merged.player.data$salary)
+hist(merged.player.data$eFGPerc)
+hist(merged.player.data$TwoPPerc)
+hist(merged.player.data$ThreePPerc)
+hist(merged.player.data$salary)
+```
 
-
-plot(merged.player.data$`eFG%`, merged.player.data$salary)
-hist(merged.player.data$`eFG%`)
-hist(merged.player.data$`2P%`)
-hist(merged.player.data$`3P%`)
-
+```{r}
+merged.player.data$log_salary <- log(merged.player.data$salary)
+hist(merged.player.data$log_salary)
 ```
 
 ## 5 Modeling
@@ -93,6 +108,54 @@ hist(merged.player.data$`3P%`)
 - Logistic Regression
 - KNN
 - more
+
+
+```{r Training Test Data Creation}
+player.col <- merged.player.data[,1]
+merged.player.data <- merged.player.data[,-1]
+sal.col <- merged.player.data[,1]
+merged.player.data <- merged.player.data[,-1]
+data.size<-nrow(merged.player.data)
+train.rows<-sample(1:data.size, data.size/2)
+train.data<-merged.player.data[train.rows,]
+test.data<-merged.player.data[-train.rows,]
+true.vals<-test.data[,28]
+```
+
+```{r}
+tree.salary <- tree(log_salary ~., train.data)
+summary(tree.salary)
+
+plot(tree.salary)
+text(tree.salary)
+```
+
+```{r}
+tree.pred <- predict(tree.salary, test.data)
+mse <- mean((tree.pred - true.vals)^2)
+mse
+```
+
+```{r}
+cv.salary<-cv.tree(tree.salary)
+plot(cv.salary$size, cv.salary$dev, type="b")
+```
+
+```{r}
+best.size <- 3
+pruned <- prune.tree(tree.salary, best = best.size)
+plot(pruned)
+text(pruned)
+```
+
+
+```{r}
+prune.pred <- predict(pruned, test.data)
+mse <- mean((prune.pred - true.vals)^2)
+mse
+```
+
+The pruned model does not perform better than the unpruned model, as the mse was 1.112142 while the unpruned model had a mse of 1.068486. Therefore, we will stick with the unpruned model as the best version of the tree model. 
 
 ## 6 Removing salary outliers and rerunning models 
 
