@@ -29,23 +29,62 @@ library(randomForest)
 
 Main purpose of the report and guiding questions you will investigate. Include any specific information about the domain and what you plan to study about that domain that the audience should know to understand the rest of your report.
 
+The main purpose of our project is to understand why NBA players are paid as much as they are. Some players make closer to normal salaries, while others make many millions a year, and we
+hope to understand why it is that certain players make more money than others.
+A team is going to pay a player based on the success that they predict the player to bring to the team. In other words, a team hopes a player performs well in the statistical area that
+is specific to their position. For example, a point guard is considered the play maker of the team and therefore is expected to have a lot of assists. 
+We are still interested in understanding what combinations of statistics are most
+associated with high salaries. We think that viewing this data position specific will provide
+more clarification on what statistics are most important based on that position and what statistics determine if they are a good player in that position.
+
 ## 2. Data and Resources Used.
 
 Describe where you obtained data from, what variables you used, their data types and distributions. Clearly describe what the variables measure.
 
-You can use this list format in markdown to describe variables if you wish:
 
-Variable name1: This variable measures...
+The data that we used was retrieved from two sources. Both data sources needed to be web-scraped from their respective websites using the xpath because the sites did not provide a good method for downloading the data. The salary data was retrieved from https://hoopshype.com/salaries/players/2021-2022/, and the player performance data was retrieved from https://www.basketball-reference.com/leagues/NBA_2022_totals.html. After that, both of the data sources needed to be cleaned before we combined them into our final data product. We had to make a few significant data cleaning measures listed below: 
+
+- For salary, we had to remove the commas and '$' from the salary column
+- For the player statistics, we had to remove duplicates of player instances for players who played on multiple teams in one season
+- Additionally, for the player statistics, we had to change the variable names of all the variables with numbers or '%' in the name because R is unable to handle them as variable names.
+- We also had to convert most of the variables in statistics from character to numeric
+- Lastly, we dropped any players that had a double position listed because it would mess up our position-specific analysis. 
+
+In its final form, the data contains some of the the following variables: 
+Salary (Salary): This variable measures the NBA player's salary for the 2021-2022 season
 : Data Type: numeric
-: Range/Levels: 24-80
+: Range/Levels: 13294-45780966
 
-Variable name2: This variable measures...
+Rank (RK): This variable measures the player's rank in the season. 
+: Data Type: numeric
+: Range/Levels: 1-605
+
+Position (POS): This variable indicates a player's position during the season.  
 : Data Type: categorical
-: Range/Levels: 4,5
+: Range/Levels: C, C-PF, PF, PF-SF, PG, PG-SG, SF, SF-SG, SG,SG-PG, SG-SF
 
-Include plots and tables to show the ranges and distributions of the important variables- you don’t necessarily have to do this for all variables, just the important ones. Do not display a raw summary of the entire dataset (data dump). Mention any modifications to the data (cleaning). Links to data sources go in the References section at the end of the doc.
+Games (G): This variable measures the number of games the player played in. 
+: Data Type: numeric
+: Range/Levels: 1-82
 
-## 1. Reading in the Data
+Games Started (GS): This variable measures the number of games the player started in 
+: Data Type: numeric
+: Range/Levels: 0-82
+
+Minutes Played (MP): This variable measures the number of minutes a player played
+: Data Type: numeric
+: Range/Levels: 1-2854
+
+Field Goals (FG): This variable measures the number of field goals that a player made
+: Data Type: numeric
+: Range/Levels: 0-774
+
+Effective Field Goal Percentage (eFPPerc): This variable measures the field goal percentage of a player, but takes into account that 3 pointers count more than 2 pointers. 
+: Data Type: numeric
+: Range/Levels: 1-2854
+
+The data ultimately has 530 player entries and each player has 29 attributes. 
+
 ```{r Reading in the Data}
 url_salary <- 'https://hoopshype.com/salaries/players/2021-2022/'
 x_path <- '//*[@id="content-container"]/div/div[3]/div[2]/table'
@@ -54,10 +93,14 @@ salary_table <- url_salary %>%
   html_element(xpath = x_path) %>%
   html_table()
 
-df.stats <- read_excel('Player_stat_data.xlsx')
+url_stats <- 'https://www.basketball-reference.com/leagues/NBA_2022_totals.html'
+x_path_stats <- '//*[@id="totals_stats"]'
+df.stats <- url_stats %>%
+  read_html() %>%
+  html_element(xpath = x_path_stats) %>%
+  html_table()
 ```
 
-## 2. Cleaning the data
 ```{r Cleaning the dataframes}
 # For Salary
 colnames(salary_table) <- as.character(salary_table[1,])
@@ -88,9 +131,172 @@ colnames(df.stats.distinct)[colnames(df.stats.distinct) == "3PA"] <- "ThreePoint
 colnames(df.stats.distinct)[colnames(df.stats.distinct) == "2PA"] <- "TwoPointAvg"
 ```
 
-## 3. Merging the data
 ```{r Merging the Data}
 merged.player.data <- merge(salary_table, df.stats.distinct, by = "Player", all = FALSE)
+```
+
+```{r}
+merged.player.data$Rk <- as.numeric(merged.player.data$Rk)
+merged.player.data$G <- as.numeric(merged.player.data$G)
+merged.player.data$GS <- as.numeric(merged.player.data$GS)
+merged.player.data$MP <- as.numeric(merged.player.data$MP)
+merged.player.data$FG <- as.numeric(merged.player.data$FG)
+merged.player.data$FGA <- as.numeric(merged.player.data$FGA)
+merged.player.data$FGPerc <- as.numeric(merged.player.data$FGPerc)
+merged.player.data$ThreePointers <- as.numeric(merged.player.data$ThreePointers)
+merged.player.data$ThreePointAvg <- as.numeric(merged.player.data$ThreePointAvg)
+merged.player.data$ThreePPerc <- as.numeric(merged.player.data$ThreePPerc)
+merged.player.data$TwoPointers <- as.numeric(merged.player.data$TwoPointers)
+merged.player.data$TwoPointAvg <- as.numeric(merged.player.data$TwoPointAvg)
+merged.player.data$TwoPPerc <- as.numeric(merged.player.data$TwoPPerc)
+merged.player.data$eFGPerc <- as.numeric(merged.player.data$eFGPerc)
+merged.player.data$FT <- as.numeric(merged.player.data$FT)
+merged.player.data$FTA <- as.numeric(merged.player.data$FTA)
+merged.player.data$FTPerc <- as.numeric(merged.player.data$FTPerc)
+merged.player.data$ORB <- as.numeric(merged.player.data$ORB)
+merged.player.data$DRB <- as.numeric(merged.player.data$DRB)
+merged.player.data$TRB <- as.numeric(merged.player.data$TRB)
+merged.player.data$AST <- as.numeric(merged.player.data$AST)
+merged.player.data$STL <- as.numeric(merged.player.data$STL)
+merged.player.data$BLK <- as.numeric(merged.player.data$BLK)
+merged.player.data$TOV <- as.numeric(merged.player.data$TOV)
+merged.player.data$PF <- as.numeric(merged.player.data$PF)
+merged.player.data$PTS <- as.numeric(merged.player.data$PTS)
+```
+```{r}
+merged.player.data <- merged.player.data[merged.player.data$Pos != 'PF-SF' & merged.player.data$Pos != 'PF-SG' & merged.player.data$Pos != 'SF-SG' & merged.player.data$Pos != 'SG-PG' & merged.player.data$Pos != 'SG-SF' & merged.player.data$Pos != 'PG-SG', ]
+```
+
+### Exploratory Data Analysis
+Include plots and tables to show the ranges and distributions of the important variables- you don’t necessarily have to do this for all variables, just the important ones. Do not display a raw summary of the entire dataset (data dump). Mention any modifications to the data (cleaning). Links to data sources go in the References section at the end of the doc.
+
+Taking a look at the most important variable, salary, we noticed that the data is very skewed, as seen in the histogram below. Because of that, we decided to create a variable that represented the log of salary to create a more normally distributed variable for the model.
+```{r Salary}
+hist(merged.player.data$salary)
+```
+```{r Taking the log of salary}
+merged.player.data$log_salary <- log(merged.player.data$salary)
+hist(merged.player.data$log_salary)
+```
+
+We also wanted to better understand how a player's salary was related to the way they perform, in other words what statistics they peform well in based on their position. 
+```{r Bubble Plot of Points to Assists Based on Position}
+ggplot(merged.player.data, aes(x=PTS, y=AST, size = salary, color = Pos)) +
+    geom_point(alpha=0.8)
+```
+
+```{r}
+ggplot(merged.player.data, aes(x=ThreePointers, y=TwoPointers, size = salary, color = Pos)) +
+    geom_point(alpha=0.8)
+```
+```{r salary}
+plot(merged.player.data$Rk, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$Rk))
+
+plot(merged.player.data$G, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$G))
+
+plot(merged.player.data$GS, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$GS))
+
+plot(merged.player.data$MP, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$MP))
+
+plot(merged.player.data$FG, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$FG))
+
+plot(merged.player.data$FGA, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$FGA))
+
+plot(merged.player.data$FGPerc, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$FGPerc))
+
+plot(merged.player.data$ThreePointers, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$ThreePointers))
+
+plot(merged.player.data$ThreePointAvg, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$ThreePointAvg))
+
+plot(merged.player.data$ThreePPerc, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$ThreePPerc))
+
+plot(merged.player.data$TwoPointers, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$TwoPointers))
+
+plot(merged.player.data$TwoPointAvg, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$TwoPointAvg))
+
+plot(merged.player.data$TwoPPerc, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$TwoPPerc))
+
+plot(merged.player.data$eFGPerc, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$eFGPerc))
+
+plot(merged.player.data$FT, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$FT))
+
+plot(merged.player.data$FTA, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$FTA))
+
+plot(merged.player.data$FTPerc, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$FTPerc))
+
+plot(merged.player.data$ORB, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$ORB))
+
+plot(merged.player.data$DRB, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$DRB))
+
+plot(merged.player.data$TRB, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$TRB))
+
+plot(merged.player.data$AST, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$AST))
+
+plot(merged.player.data$STL, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$STL))
+
+plot(merged.player.data$BLK, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$BLK))
+
+plot(merged.player.data$TOV, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$TOV))
+
+plot(merged.player.data$PF, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$PF))
+
+plot(merged.player.data$PTS, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$PTS))
+
+
+
+hist(merged.player.data$Rk)
+hist(merged.player.data$G)
+hist(merged.player.data$GS)
+hist(merged.player.data$MP)
+hist(merged.player.data$FG)
+hist(merged.player.data$FGA)
+hist(merged.player.data$FGPerc)
+hist(merged.player.data$ThreePointers)
+hist(merged.player.data$ThreePointAvg)
+hist(merged.player.data$ThreePPerc)
+hist(merged.player.data$TwoPointers)
+hist(merged.player.data$TwoPointAvg)
+hist(merged.player.data$TwoPPerc)
+hist(merged.player.data$eFGPerc)
+hist(merged.player.data$FT)
+hist(merged.player.data$FTA)
+hist(merged.player.data$FTPerc)
+hist(merged.player.data$ORB)
+hist(merged.player.data$DRB)
+hist(merged.player.data$TRB)
+hist(merged.player.data$AST)
+hist(merged.player.data$STL)
+hist(merged.player.data$BLK)
+hist(merged.player.data$TOV)
+hist(merged.player.data$PF)
+hist(merged.player.data$PTS)
+
 ```
 ## 3. Analysis.
 
