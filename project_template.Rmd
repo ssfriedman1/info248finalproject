@@ -1,0 +1,176 @@
+---
+title: "Analysis of NBA Player Statistics and Salary for 2021-2022 Season"
+author: "Spencer Friedman and Jon Abraham"
+date: "05/25/2023"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, echo=FALSE, message = FALSE, results = FALSE, warning=FALSE}
+# library load statements here- remember, no install statements.
+# some useful libraries you may find useful:
+library(knitr) # for rendering tables with the kable function.
+library(dplyr)
+library(ggplot2)
+library(rvest)
+library(dplyr)
+library(readxl)
+library(tree)
+library(rpart)
+library(gbm)
+library(randomForest)
+```
+
+## 1. Project Overview. 
+
+Main purpose of the report and guiding questions you will investigate. Include any specific information about the domain and what you plan to study about that domain that the audience should know to understand the rest of your report.
+
+## 2. Data and Resources Used.
+
+Describe where you obtained data from, what variables you used, their data types and distributions. Clearly describe what the variables measure.
+
+You can use this list format in markdown to describe variables if you wish:
+
+Variable name1: This variable measures...
+: Data Type: numeric
+: Range/Levels: 24-80
+
+Variable name2: This variable measures...
+: Data Type: categorical
+: Range/Levels: 4,5
+
+Include plots and tables to show the ranges and distributions of the important variables- you don’t necessarily have to do this for all variables, just the important ones. Do not display a raw summary of the entire dataset (data dump). Mention any modifications to the data (cleaning). Links to data sources go in the References section at the end of the doc.
+
+## 1. Reading in the Data
+```{r Reading in the Data}
+url_salary <- 'https://hoopshype.com/salaries/players/2021-2022/'
+x_path <- '//*[@id="content-container"]/div/div[3]/div[2]/table'
+salary_table <- url_salary %>%
+  read_html() %>%
+  html_element(xpath = x_path) %>%
+  html_table()
+
+df.stats <- read_excel('Player_stat_data.xlsx')
+```
+
+## 2. Cleaning the data
+```{r Cleaning the dataframes}
+# For Salary
+colnames(salary_table) <- as.character(salary_table[1,])
+salary_table <- salary_table[-1,]
+salary_table <- subset(salary_table, select  = -ncol(salary_table))
+salary_table <- subset(salary_table, select = -which(names(salary_table) == "NA"))
+salary_table$`2021/22`<- gsub("\\$", "", salary_table$`2021/22`)
+salary_table$`2021/22`<- gsub(",", "", salary_table$`2021/22`)
+names(salary_table)[names(salary_table) == "2021/22"] <- "salary"
+salary_table$salary <- as.numeric(salary_table$salary)
+                                
+# For Player Stats
+age <- select(df.stats, Age) 
+df.stats <- select(df.stats, -Age)
+tm <- select(df.stats, Tm) 
+df.stats <- select(df.stats, -Tm)
+df.stats$Pos <- factor(df.stats$Pos)
+df.stats.distinct <- df.stats %>% 
+  distinct(Player, .keep_all = TRUE)
+colnames(df.stats.distinct)[colnames(df.stats.distinct) == "FG%"] <- "FGPerc"
+colnames(df.stats.distinct)[colnames(df.stats.distinct) == "3P%"] <- "ThreePPerc"
+colnames(df.stats.distinct)[colnames(df.stats.distinct) == "2P%"] <- "TwoPPerc"
+colnames(df.stats.distinct)[colnames(df.stats.distinct) == "eFG%"] <- "eFGPerc"
+colnames(df.stats.distinct)[colnames(df.stats.distinct) == "FT%"] <- "FTPerc"
+colnames(df.stats.distinct)[colnames(df.stats.distinct) == "3P"] <- "ThreePointers"
+colnames(df.stats.distinct)[colnames(df.stats.distinct) == "2P"] <- "TwoPointers"
+colnames(df.stats.distinct)[colnames(df.stats.distinct) == "3PA"] <- "ThreePointAvg"
+colnames(df.stats.distinct)[colnames(df.stats.distinct) == "2PA"] <- "TwoPointAvg"
+```
+
+## 3. Merging the data
+```{r Merging the Data}
+merged.player.data <- merge(salary_table, df.stats.distinct, by = "Player", all = FALSE)
+```
+## 3. Analysis.
+
+This is where you explain the methods you used to carry out the analysis to investigate the guiding question(s). State what techniques you used, what variables were included. Identify the independent and dependent variables. Did you preprocess the data? Include the results of any modeling and explain what they mean.
+
+Code Chunks
+
+Examples of using R markdown and code chunks. See the links in the references section for more on using code chunk options to control rendering.
+
+Example of a code chunk that hides the code from being rendered:
+
+```{r echo=FALSE}
+
+```
+
+Create an example table and use kable to render it nicely:
+
+```{r echo=FALSE}
+
+```
+
+Notice the table is automatically numbered.
+
+Rendering a barplot using the caption option:
+
+```{r echo=FALSE, out.width="75%", out.height="75%", fig.cap = "Bar Plot Example base R", fig.align = 'center'}
+
+counts <- table(mtcars$vs, mtcars$gear)
+my.plot<-barplot(counts, main="Car Distribution by Gears and VS",
+  xlab="Number of Gears", col=c("gray","gray43"),
+  ylim = c(0, max(counts) + 1),
+  legend = rownames(counts), beside=TRUE)
+text(x = my.plot, y = counts + 0.5, counts, cex = 0.8, col = "red")
+
+```
+
+Adding another plot:
+
+```{r echo=FALSE, out.width="75%", out.height="75%", fig.align = 'center', fig.cap = "Bar Plot Example ggplot2"}
+ggplot(mtcars, aes(x = factor(cyl))) +
+  geom_bar() +
+  geom_text(aes(label = after_stat(count)), vjust=-1, stat = "count") +
+  xlab('cylinders') 
+```
+
+Notice the plots are automatically numbered.
+
+Adding a page break:
+
+\newpage
+
+## Summary and Conclusions.
+
+In this section, you briefly summarize what you did and state the conclusions that you have determined based on the results of what you did in the analysis part above. This should be a single paragraph. It is important to clearly state what you conclude about your results. Point out any possible problems that you that may have an effect on your conclusions. For example, small data size, lot of missing values, suspected 
+
+## References
+
+This part is a list of links to the data set(s) you used. Also include links to any resources you used in your project, such as code examples that you adapted to your project or tutorials on analysis techniques that were an important part of your project. You do not have to list any resources from our course material or from R documentation.
+
+* https://rmarkdown.rstudio.com/lesson-3.html 
+* https://www.rstudio.com/wp-content/uploads/2015/03/rmarkdown-reference.pdf
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
