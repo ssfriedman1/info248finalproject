@@ -3,10 +3,11 @@ title: "Analysis of NBA Player Statistics and Salary for 2021-2022 Season"
 author: "Spencer Friedman and Jon Abraham"
 date: "05/25/2023"
 output:
+  pdf_document: default
+  word_document: default
   html_document:
     df_print: paged
-  pdf_document: default
-editor_options: 
+editor_options:
   chunk_output_type: console
 ---
 
@@ -26,24 +27,22 @@ library(randomForest)
 library(treemap)
 library(treemapify)
 options(warn=-1)
+library(pROC)
 ```
 
 ## 1. Project Overview. 
 
 Main purpose of the report and guiding questions you will investigate. Include any specific information about the domain and what you plan to study about that domain that the audience should know to understand the rest of your report.
 
-The main purpose of our project is to understand why NBA players are paid as much as they are. Some players make closer to normal salaries, while others make many millions a year, and we
-hope to understand why it is that certain players make more money than others.
-A team is going to pay a player based on the success that they predict the player to bring to the team. In other words, a team hopes a player performs well in the statistical area that
-is specific to their position. For example, a point guard is considered the play maker of the team and therefore is expected to have a lot of assists. 
-We are still interested in understanding what combinations of statistics are most
-associated with high salaries. We think that viewing this data position specific will provide
-more clarification on what statistics are most important based on that position and what statistics determine if they are a good player in that position.
+Our project aims to delve into the intriguing realm of NBA player salaries, seeking to uncover the underlying factors behind the vast disparity in compensation within the league. By looking into this topic, we aspire to gain a comprehensive understanding of why certain players command significantly higher salaries than their counterparts.
+
+Drawing upon the notion that a professional basketball team operates as a business entity, player remuneration becomes contingent upon the team's projected success hinging on the individual's contributions. In essence, a team's investment in a player is predicated on their anticipated performance in the specific aspects of the game pertinent to their position. For instance, a point guard assumes the pivotal role of the team's play-maker and is thus expected to excel in generating assists.
+
+Moreover, our research remains devoted to unraveling the optimal amalgamation of statistical indicators closely associated with lucrative salaries. Through a focused examination of position-specific data, we anticipate illuminating the key performance metrics that hold the utmost significance within each position. By discerning the statistical benchmarks that distinguish exceptional players in their respective roles, we aim to shed light on the factors that contribute to their overall prowess and, subsequently, their monetary worth.
 
 ## 2. Data and Resources Used.
 
 Describe where you obtained data from, what variables you used, their data types and distributions. Clearly describe what the variables measure.
-
 
 The data that we used was retrieved from two sources. Both data sources needed to be web-scraped from their respective websites using the xpath because the sites did not provide a good method for downloading the data. The salary data was retrieved from https://hoopshype.com/salaries/players/2021-2022/, and the player performance data was retrieved from https://www.basketball-reference.com/leagues/NBA_2022_totals.html. After that, both of the data sources needed to be cleaned before we combined them into our final data product. We had to make a few significant data cleaning measures listed below: 
 
@@ -147,10 +146,10 @@ merged.player.data$FG <- as.numeric(merged.player.data$FG)
 merged.player.data$FGA <- as.numeric(merged.player.data$FGA)
 merged.player.data$FGPerc <- as.numeric(merged.player.data$FGPerc)
 merged.player.data$ThreePointers <- as.numeric(merged.player.data$ThreePointers)
-merged.player.data$ThreePointAvg <- as.numeric(merged.player.data$ThreePointAtt)
+merged.player.data$ThreePointAtt <- as.numeric(merged.player.data$ThreePointAtt)
 merged.player.data$ThreePPerc <- as.numeric(merged.player.data$ThreePPerc)
 merged.player.data$TwoPointers <- as.numeric(merged.player.data$TwoPointers)
-merged.player.data$TwoPointAvg <- as.numeric(merged.player.data$TwoPointAtt)
+merged.player.data$TwoPointAtt <- as.numeric(merged.player.data$TwoPointAtt)
 merged.player.data$TwoPPerc <- as.numeric(merged.player.data$TwoPPerc)
 merged.player.data$eFGPerc <- as.numeric(merged.player.data$eFGPerc)
 merged.player.data$FT <- as.numeric(merged.player.data$FT)
@@ -167,25 +166,19 @@ merged.player.data$PF <- as.numeric(merged.player.data$PF)
 merged.player.data$PTS <- as.numeric(merged.player.data$PTS)
 merged.player.data$salary <- as.numeric((merged.player.data$salary))
 ```
-```{r}
+```{r, echo = FALSE}
 merged.player.data <- merged.player.data[merged.player.data$Pos != 'PF-SF' & merged.player.data$Pos != 'PF-SG' & merged.player.data$Pos != 'SF-SG' & merged.player.data$Pos != 'SG-PG' & merged.player.data$Pos != 'SG-SF' & merged.player.data$Pos != 'PG-SG', ]
 ```
-
-# 3. Analysis.
-
-This is where you explain the methods you used to carry out the analysis to investigate the guiding question(s). State what techniques you used, what variables were included. Identify the independent and dependent variables. Did you preprocess the data? Include the results of any modeling and explain what they mean.
-
-Code Chunks
-
-Examples of using R markdown and code chunks. See the links in the references section for more on using code chunk options to control rendering.
-
-Example of a code chunk that hides the code from being rendered:
 
 ## Exploratory Data Analysis
 Include plots and tables to show the ranges and distributions of the important variables- you don’t necessarily have to do this for all variables, just the important ones. Do not display a raw summary of the entire dataset (data dump). Mention any modifications to the data (cleaning). Links to data sources go in the References section at the end of the doc.
 
+# 3. Analysis.
+
+To start our analysis, we first sought to visualize some of the most important variables such as points, assists, 3-pointers, and 2-pointers to understand at a high level how different positions perform within a game. 
+
 ### Salary
-Taking a look at the most important variable, salary, we noticed that the data is very skewed, as seen in the histogram below. 
+Starting with a look at the most important variable, salary, we noticed that the data is very skewed, as seen in the histogram below. 
 ```{r echo=FALSE, out.width="75%", out.height="75%", fig.cap = "Distribution of Salary", fig.align = 'center'}
 ggplot(merged.player.data, aes(x = salary)) +
   geom_histogram(bins = 30) +
@@ -213,7 +206,7 @@ Based on the graph, Point Guards average more assists than any other position, m
 
 We then looked at how different positions perform based on two and three pointers. 
 
-```{r echo=FALSE, out.width="75%", out.height="75%", fig.cap = "Two and Three Point percentage by Position", fig.align = 'center'}
+```{r echo=FALSE, out.width="75%", out.height="75%", fig.cap = "Two and Three Point percentage by Position", fig.align = 'center', fig.pos = 'H'}
 ggplot(merged.player.data, aes(x=ThreePPerc, y=TwoPPerc, color = Pos)) +
     geom_point(alpha=0.8, size = 4) 
 ```
@@ -222,7 +215,7 @@ While there aren't very clear trends to see from this graph, one can see that ma
 
 Lastly for looking at position, we created a treemap to further visualize how different positions contribute to assists and points. 
 
-```{r echo=FALSE, out.width="75%", out.height="75%", fig.cap = "Assists by Position and Player", fig.align = 'center'}
+```{r echo=FALSE, out.width="75%", out.height="75%", fig.cap = "Assists by Position and Player", fig.align = 'center', fig.pos = 'H'}
 ggplot(merged.player.data, aes(area = AST, fill = Pos, label = Player,
                 subgroup = Pos)) +
   geom_treemap() +
@@ -233,7 +226,7 @@ ggplot(merged.player.data, aes(area = AST, fill = Pos, label = Player,
   scale_fill_brewer(palette = "Dark2")
 ```
 
-```{r echo=FALSE, out.width="75%", out.height="75%", fig.cap = "Points by Position and Player", fig.align = 'center'}
+```{r echo=FALSE, out.width="75%", out.height="75%", fig.cap = "Points by Position and Player", fig.align = 'center', fig.pos = 'H'}
 ggplot(merged.player.data, aes(area = PTS, fill = Pos, label = Player,
                 subgroup = Pos)) +
   geom_treemap() +
@@ -266,7 +259,9 @@ hist(merged.player.data$TwoPPerc)
 
 # Modeling 
 
-```{r Training Test Data Creation, echo = False}
+This is where you explain the methods you used to carry out the analysis to investigate the guiding question(s). State what techniques you used, what variables were included. Identify the independent and dependent variables. Did you preprocess the data? Include the results of any modeling and explain what they mean.
+
+```{r Training Test Data Creation, echo = FALSE}
 player.col <- merged.player.data[,1]
 merged.player.data <- merged.player.data[,-1]
 sal.col <- merged.player.data[,1]
@@ -279,36 +274,39 @@ true.vals<-test.data[,28]
 ```
 
 linear regression
-```{r, echo = False}
+```{r, echo = FALSE}
 lm.salary <- lm(log_salary ~ ., data = train.data)
 summary(lm.salary)
+lm.predicted <- predict(lm.salary, test.data, type = 'response')
+auc(test.data$log_salary, lm.predicted)
 ```
 
 ```{r}
 lm.salary.sig <- lm(log_salary ~ G + FTPerc + AST + BLK, data = train.data)
 summary(lm.salary.sig)
+lm.predicted.sig <- predict(lm.salary.sig, test.data, type = 'response')
+auc(test.data$log_salary, lm.predicted.sig)
 ```
 
-```{r, echo = False}
+```{r, echo = FALSE}
 tree.salary <- tree(log_salary ~., train.data)
 summary(tree.salary)
-
 plot(tree.salary)
 text(tree.salary)
 ```
 
-```{r, echo = False}
+```{r, echo = FALSE}
 tree.pred <- predict(tree.salary, test.data)
 mse <- mean((tree.pred - true.vals)^2)
 mse
 ```
 
-```{r, echo = False}
+```{r, echo = FALSE}
 cv.salary<-cv.tree(tree.salary)
 plot(cv.salary$size, cv.salary$dev, type="b")
 ```
 
-```{r, echo = False}
+```{r, echo = FALSE}
 best.size <- 3
 pruned <- prune.tree(tree.salary, best = best.size)
 plot(pruned)
@@ -316,7 +314,7 @@ text(pruned)
 ```
 
 
-```{r, echo = False}
+```{r, echo = FALSE}
 prune.pred <- predict(pruned, test.data)
 mse <- mean((prune.pred - true.vals)^2)
 mse
@@ -325,7 +323,7 @@ mse
 The pruned model does not perform better than the unpruned model, as the mse was 1.112142 while the unpruned model had a mse of 1.068486. Therefore, we will stick with the unpruned model as the best version of the tree model. 
 
 
-```{r, echo = False}
+```{r, echo = FALSE}
 data<-merged.player.data
 data.size<-nrow(data)
 data.cols<-ncol(data)
@@ -347,17 +345,17 @@ for(i in c(1:num.folds)){
     tree.pred<- predict(tree.salary, newdata=test)
     tree.pruned.pred<- predict(tree.pruned, newdata=test)
     # mse
-    mse.tree<-c(mse.tree, mean((tree.pred-true)^2))
+    mse.tree<-c(mse.tree, mean((tree.pred - true)^2))
     mse.pruned<-c(mse.pruned, mean((tree.pruned.pred-true)^2))
 }
 
 ```
 MSE for the unpruned tree:
-```{r, echo = False}
+```{r, echo = FALSE}
 mean(mse.tree)
 ```
 MSE for the pruned tree:
-```{r, echo = False}
+```{r, echo = FALSE}
 mean(mse.pruned)
 ```
 
@@ -373,6 +371,8 @@ mean((boost.pred-true.vals)^2)
 ```
 
 ```{r Random Forest, echo = False}
+train.data <- na.omit(train.data)
+test.data <- na.omit(test.data)
 bag.salary<-randomForest(log_salary~., data=train.data, mtry=12, importance=TRUE)
 bag.pred<-predict(bag.salary, newdata=test.data)
 mean((bag.pred-true.vals)^2)
