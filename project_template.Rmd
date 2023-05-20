@@ -3,9 +3,9 @@ title: "Analysis of NBA Player Statistics and Salary for 2021-2022 Season"
 author: "Spencer Friedman and Jon Abraham"
 date: "05/25/2023"
 output:
-  pdf_document: default
   html_document:
     df_print: paged
+  pdf_document: default
 editor_options: 
   chunk_output_type: console
 ---
@@ -23,6 +23,9 @@ library(tree)
 library(rpart)
 library(gbm)
 library(randomForest)
+library(treemap)
+library(treemapify)
+options(warn=-1)
 ```
 
 ## 1. Project Overview. 
@@ -85,7 +88,7 @@ Effective Field Goal Percentage (eFPPerc): This variable measures the field goal
 
 The data ultimately has 530 player entries and each player has 29 attributes. 
 
-```{r Reading in the Data}
+```{r Reading in the Data, echo=FALSE}
 url_salary <- 'https://hoopshype.com/salaries/players/2021-2022/'
 x_path <- '//*[@id="content-container"]/div/div[3]/div[2]/table'
 salary_table <- url_salary %>%
@@ -101,7 +104,7 @@ df.stats <- url_stats %>%
   html_table()
 ```
 
-```{r Cleaning the dataframes}
+```{r Cleaning the dataframes, echo=FALSE}
 # For Salary
 colnames(salary_table) <- as.character(salary_table[1,])
 salary_table <- salary_table[-1,]
@@ -127,15 +130,15 @@ colnames(df.stats.distinct)[colnames(df.stats.distinct) == "eFG%"] <- "eFGPerc"
 colnames(df.stats.distinct)[colnames(df.stats.distinct) == "FT%"] <- "FTPerc"
 colnames(df.stats.distinct)[colnames(df.stats.distinct) == "3P"] <- "ThreePointers"
 colnames(df.stats.distinct)[colnames(df.stats.distinct) == "2P"] <- "TwoPointers"
-colnames(df.stats.distinct)[colnames(df.stats.distinct) == "3PA"] <- "ThreePointAvg"
-colnames(df.stats.distinct)[colnames(df.stats.distinct) == "2PA"] <- "TwoPointAvg"
+colnames(df.stats.distinct)[colnames(df.stats.distinct) == "3PA"] <- "ThreePointAtt"
+colnames(df.stats.distinct)[colnames(df.stats.distinct) == "2PA"] <- "TwoPointAtt"
 ```
 
-```{r Merging the Data}
+```{r Merging the Data, echo=FALSE}
 merged.player.data <- merge(salary_table, df.stats.distinct, by = "Player", all = FALSE)
 ```
 
-```{r}
+```{r, echo=FALSE}
 merged.player.data$Rk <- as.numeric(merged.player.data$Rk)
 merged.player.data$G <- as.numeric(merged.player.data$G)
 merged.player.data$GS <- as.numeric(merged.player.data$GS)
@@ -144,10 +147,10 @@ merged.player.data$FG <- as.numeric(merged.player.data$FG)
 merged.player.data$FGA <- as.numeric(merged.player.data$FGA)
 merged.player.data$FGPerc <- as.numeric(merged.player.data$FGPerc)
 merged.player.data$ThreePointers <- as.numeric(merged.player.data$ThreePointers)
-merged.player.data$ThreePointAvg <- as.numeric(merged.player.data$ThreePointAvg)
+merged.player.data$ThreePointAvg <- as.numeric(merged.player.data$ThreePointAtt)
 merged.player.data$ThreePPerc <- as.numeric(merged.player.data$ThreePPerc)
 merged.player.data$TwoPointers <- as.numeric(merged.player.data$TwoPointers)
-merged.player.data$TwoPointAvg <- as.numeric(merged.player.data$TwoPointAvg)
+merged.player.data$TwoPointAvg <- as.numeric(merged.player.data$TwoPointAtt)
 merged.player.data$TwoPPerc <- as.numeric(merged.player.data$TwoPPerc)
 merged.player.data$eFGPerc <- as.numeric(merged.player.data$eFGPerc)
 merged.player.data$FT <- as.numeric(merged.player.data$FT)
@@ -162,143 +165,13 @@ merged.player.data$BLK <- as.numeric(merged.player.data$BLK)
 merged.player.data$TOV <- as.numeric(merged.player.data$TOV)
 merged.player.data$PF <- as.numeric(merged.player.data$PF)
 merged.player.data$PTS <- as.numeric(merged.player.data$PTS)
+merged.player.data$salary <- as.numeric((merged.player.data$salary))
 ```
 ```{r}
 merged.player.data <- merged.player.data[merged.player.data$Pos != 'PF-SF' & merged.player.data$Pos != 'PF-SG' & merged.player.data$Pos != 'SF-SG' & merged.player.data$Pos != 'SG-PG' & merged.player.data$Pos != 'SG-SF' & merged.player.data$Pos != 'PG-SG', ]
 ```
 
-### Exploratory Data Analysis
-Include plots and tables to show the ranges and distributions of the important variables- you don’t necessarily have to do this for all variables, just the important ones. Do not display a raw summary of the entire dataset (data dump). Mention any modifications to the data (cleaning). Links to data sources go in the References section at the end of the doc.
-
-Taking a look at the most important variable, salary, we noticed that the data is very skewed, as seen in the histogram below. Because of that, we decided to create a variable that represented the log of salary to create a more normally distributed variable for the model.
-```{r Salary}
-hist(merged.player.data$salary)
-```
-```{r Taking the log of salary}
-merged.player.data$log_salary <- log(merged.player.data$salary)
-hist(merged.player.data$log_salary)
-```
-
-We also wanted to better understand how a player's salary was related to the way they perform, in other words what statistics they peform well in based on their position. 
-```{r Bubble Plot of Points to Assists Based on Position}
-ggplot(merged.player.data, aes(x=PTS, y=AST, size = salary, color = Pos)) +
-    geom_point(alpha=0.8)
-```
-
-```{r}
-ggplot(merged.player.data, aes(x=ThreePointers, y=TwoPointers, size = salary, color = Pos)) +
-    geom_point(alpha=0.8)
-```
-```{r salary}
-plot(merged.player.data$Rk, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$Rk))
-
-plot(merged.player.data$G, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$G))
-
-plot(merged.player.data$GS, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$GS))
-
-plot(merged.player.data$MP, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$MP))
-
-plot(merged.player.data$FG, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$FG))
-
-plot(merged.player.data$FGA, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$FGA))
-
-plot(merged.player.data$FGPerc, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$FGPerc))
-
-plot(merged.player.data$ThreePointers, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$ThreePointers))
-
-plot(merged.player.data$ThreePointAvg, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$ThreePointAvg))
-
-plot(merged.player.data$ThreePPerc, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$ThreePPerc))
-
-plot(merged.player.data$TwoPointers, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$TwoPointers))
-
-plot(merged.player.data$TwoPointAvg, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$TwoPointAvg))
-
-plot(merged.player.data$TwoPPerc, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$TwoPPerc))
-
-plot(merged.player.data$eFGPerc, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$eFGPerc))
-
-plot(merged.player.data$FT, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$FT))
-
-plot(merged.player.data$FTA, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$FTA))
-
-plot(merged.player.data$FTPerc, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$FTPerc))
-
-plot(merged.player.data$ORB, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$ORB))
-
-plot(merged.player.data$DRB, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$DRB))
-
-plot(merged.player.data$TRB, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$TRB))
-
-plot(merged.player.data$AST, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$AST))
-
-plot(merged.player.data$STL, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$STL))
-
-plot(merged.player.data$BLK, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$BLK))
-
-plot(merged.player.data$TOV, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$TOV))
-
-plot(merged.player.data$PF, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$PF))
-
-plot(merged.player.data$PTS, merged.player.data$salary)
-abline(lm(merged.player.data$salary ~ merged.player.data$PTS))
-
-
-
-hist(merged.player.data$Rk)
-hist(merged.player.data$G)
-hist(merged.player.data$GS)
-hist(merged.player.data$MP)
-hist(merged.player.data$FG)
-hist(merged.player.data$FGA)
-hist(merged.player.data$FGPerc)
-hist(merged.player.data$ThreePointers)
-hist(merged.player.data$ThreePointAvg)
-hist(merged.player.data$ThreePPerc)
-hist(merged.player.data$TwoPointers)
-hist(merged.player.data$TwoPointAvg)
-hist(merged.player.data$TwoPPerc)
-hist(merged.player.data$eFGPerc)
-hist(merged.player.data$FT)
-hist(merged.player.data$FTA)
-hist(merged.player.data$FTPerc)
-hist(merged.player.data$ORB)
-hist(merged.player.data$DRB)
-hist(merged.player.data$TRB)
-hist(merged.player.data$AST)
-hist(merged.player.data$STL)
-hist(merged.player.data$BLK)
-hist(merged.player.data$TOV)
-hist(merged.player.data$PF)
-hist(merged.player.data$PTS)
-
-```
-## 3. Analysis.
+# 3. Analysis.
 
 This is where you explain the methods you used to carry out the analysis to investigate the guiding question(s). State what techniques you used, what variables were included. Identify the independent and dependent variables. Did you preprocess the data? Include the results of any modeling and explain what they mean.
 
@@ -308,38 +181,201 @@ Examples of using R markdown and code chunks. See the links in the references se
 
 Example of a code chunk that hides the code from being rendered:
 
-```{r echo=FALSE}
+## Exploratory Data Analysis
+Include plots and tables to show the ranges and distributions of the important variables- you don’t necessarily have to do this for all variables, just the important ones. Do not display a raw summary of the entire dataset (data dump). Mention any modifications to the data (cleaning). Links to data sources go in the References section at the end of the doc.
 
+### Salary
+Taking a look at the most important variable, salary, we noticed that the data is very skewed, as seen in the histogram below. 
+```{r echo=FALSE, out.width="75%", out.height="75%", fig.cap = "Distribution of Salary", fig.align = 'center'}
+ggplot(merged.player.data, aes(x = salary)) +
+  geom_histogram(bins = 30) +
+  labs(title = "")
+```
+It will be difficult for the model to predict well on data that is very skewed, so we apply log to the salary column to achieve more normally distributed data. 
+```{r echo=FALSE, out.width="75%", out.height="75%", fig.cap = "Adjusted Salary Distribution using Log", fig.align = 'center'}
+merged.player.data$log_salary <- log(merged.player.data$salary)
+ggplot(merged.player.data, aes(x = log_salary)) +
+  geom_histogram(bins = 30) +
+  labs(title = "")
 ```
 
-Create an example table and use kable to render it nicely:
+### Analysis of Position
 
-```{r echo=FALSE}
+We also wanted to see how player position affects different player performances. 
 
+We start by visualizing points and assists to understand what key goal each position has. In the most high-level sense, a player's goal is either to make the points or facilitate points through assists. 
+```{r echo=FALSE, out.width="75%", out.height="75%", fig.cap = "Comparison of Points and Assists Based on Position", fig.align = 'center'}
+ggplot(merged.player.data, aes(x=PTS, y=AST, color = Pos)) +
+    geom_point(alpha=0.8, size = 4) 
 ```
 
-Notice the table is automatically numbered.
+Based on the graph, Point Guards average more assists than any other position, meaning they are the ones to make the passes. On the other hand, the centers tend to make a lower percentage of assists. 
 
-Rendering a barplot using the caption option:
+We then looked at how different positions perform based on two and three pointers. 
 
-```{r echo=FALSE, out.width="75%", out.height="75%", fig.cap = "Bar Plot Example base R", fig.align = 'center'}
-
-counts <- table(mtcars$vs, mtcars$gear)
-my.plot<-barplot(counts, main="Car Distribution by Gears and VS",
-  xlab="Number of Gears", col=c("gray","gray43"),
-  ylim = c(0, max(counts) + 1),
-  legend = rownames(counts), beside=TRUE)
-text(x = my.plot, y = counts + 0.5, counts, cex = 0.8, col = "red")
-
+```{r echo=FALSE, out.width="75%", out.height="75%", fig.cap = "Two and Three Point percentage by Position", fig.align = 'center'}
+ggplot(merged.player.data, aes(x=ThreePPerc, y=TwoPPerc, color = Pos)) +
+    geom_point(alpha=0.8, size = 4) 
 ```
 
-Adding another plot:
+While there aren't very clear trends to see from this graph, one can see that many centers have a 0 three point percentage because they have not hit any threes or do not perform well in them. 
 
-```{r echo=FALSE, out.width="75%", out.height="75%", fig.align = 'center', fig.cap = "Bar Plot Example ggplot2"}
-ggplot(mtcars, aes(x = factor(cyl))) +
-  geom_bar() +
-  geom_text(aes(label = after_stat(count)), vjust=-1, stat = "count") +
-  xlab('cylinders') 
+Lastly for looking at position, we created a treemap to further visualize how different positions contribute to assists and points. 
+
+```{r echo=FALSE, out.width="75%", out.height="75%", fig.cap = "Assists by Position and Player", fig.align = 'center'}
+ggplot(merged.player.data, aes(area = AST, fill = Pos, label = Player,
+                subgroup = Pos)) +
+  geom_treemap() +
+  geom_treemap_subgroup_border() +
+  geom_treemap_subgroup_text(place = "topleft", grow = F, alpha = 0.5, colour =
+                             "black", fontface = "italic", min.size = 2) +
+  geom_treemap_text(colour = "white", place = "topleft", reflow = T) + 
+  scale_fill_brewer(palette = "Dark2")
+```
+
+```{r echo=FALSE, out.width="75%", out.height="75%", fig.cap = "Points by Position and Player", fig.align = 'center'}
+ggplot(merged.player.data, aes(area = PTS, fill = Pos, label = Player,
+                subgroup = Pos)) +
+  geom_treemap() +
+  geom_treemap_subgroup_border() +
+  geom_treemap_subgroup_text(place = "topleft", grow = F, alpha = 0.5, colour =
+                             "black", fontface = "italic", min.size = 2) +
+  geom_treemap_text(colour = "white", place = "topleft", reflow = T) + 
+  scale_fill_brewer(palette = "Dark2")
+```
+
+As one can see again, point guards contribute most to assists but shooting guards also have a lot of assists. Then for points, point guards also perform well, but shooting guards make the most points. 
+
+```{r salary, echo= FALSE}
+plot(merged.player.data$G, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$G))
+
+plot(merged.player.data$GS, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$GS))
+
+plot(merged.player.data$MP, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$MP))
+
+plot(merged.player.data$TwoPPerc, merged.player.data$salary)
+abline(lm(merged.player.data$salary ~ merged.player.data$TwoPPerc))
+
+hist(merged.player.data$G)
+hist(merged.player.data$ThreePPerc)
+hist(merged.player.data$TwoPPerc)
+```
+
+# Modeling 
+
+```{r Training Test Data Creation, echo = False}
+player.col <- merged.player.data[,1]
+merged.player.data <- merged.player.data[,-1]
+sal.col <- merged.player.data[,1]
+merged.player.data <- merged.player.data[,-1]
+data.size<-nrow(merged.player.data)
+train.rows<-sample(1:data.size, data.size/2)
+train.data<-merged.player.data[train.rows,]
+test.data<-merged.player.data[-train.rows,]
+true.vals<-test.data[,28]
+```
+
+linear regression
+```{r, echo = False}
+lm.salary <- lm(log_salary ~ ., data = train.data)
+summary(lm.salary)
+```
+
+```{r}
+lm.salary.sig <- lm(log_salary ~ G + FTPerc + AST + BLK, data = train.data)
+summary(lm.salary.sig)
+```
+
+```{r, echo = False}
+tree.salary <- tree(log_salary ~., train.data)
+summary(tree.salary)
+
+plot(tree.salary)
+text(tree.salary)
+```
+
+```{r, echo = False}
+tree.pred <- predict(tree.salary, test.data)
+mse <- mean((tree.pred - true.vals)^2)
+mse
+```
+
+```{r, echo = False}
+cv.salary<-cv.tree(tree.salary)
+plot(cv.salary$size, cv.salary$dev, type="b")
+```
+
+```{r, echo = False}
+best.size <- 3
+pruned <- prune.tree(tree.salary, best = best.size)
+plot(pruned)
+text(pruned)
+```
+
+
+```{r, echo = False}
+prune.pred <- predict(pruned, test.data)
+mse <- mean((prune.pred - true.vals)^2)
+mse
+```
+
+The pruned model does not perform better than the unpruned model, as the mse was 1.112142 while the unpruned model had a mse of 1.068486. Therefore, we will stick with the unpruned model as the best version of the tree model. 
+
+
+```{r, echo = False}
+data<-merged.player.data
+data.size<-nrow(data)
+data.cols<-ncol(data)
+num.folds<-10
+
+data["fold"]<-floor(runif(data.size)*num.folds)+1
+data$fold<-factor(data$fold)
+
+mse.tree<-c()
+mse.pruned<-c()
+
+for(i in c(1:num.folds)){
+    train<-data[(data$fold!=i), 1:(data.cols)]
+    test<-data[(data$fold==i),1:(data.cols)]
+    true<-test[,13]
+    #fit model
+    tree.salary<-tree(log_salary~., data=train)
+    tree.pruned<-prune.tree(tree.salary, best=best.size)
+    tree.pred<- predict(tree.salary, newdata=test)
+    tree.pruned.pred<- predict(tree.pruned, newdata=test)
+    # mse
+    mse.tree<-c(mse.tree, mean((tree.pred-true)^2))
+    mse.pruned<-c(mse.pruned, mean((tree.pruned.pred-true)^2))
+}
+
+```
+MSE for the unpruned tree:
+```{r, echo = False}
+mean(mse.tree)
+```
+MSE for the pruned tree:
+```{r, echo = False}
+mean(mse.pruned)
+```
+
+Boosted Model: 
+```{r Boosted Model, warning=FALSE}
+boost.salary <-gbm(log_salary~., data=train.data, distribution="gaussian", n.trees=5000, interaction.depth=4)
+summary(boost.salary)
+```
+Now evaluate the MSE for the boosted model.
+```{r Boosted Evaluation, echo=FALSE}
+boost.pred<-predict(boost.salary, newdata=test.data, n.trees=5000)
+mean((boost.pred-true.vals)^2)
+```
+
+```{r Random Forest, echo = False}
+bag.salary<-randomForest(log_salary~., data=train.data, mtry=12, importance=TRUE)
+bag.pred<-predict(bag.salary, newdata=test.data)
+mean((bag.pred-true.vals)^2)
 ```
 
 Notice the plots are automatically numbered.
