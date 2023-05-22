@@ -27,7 +27,10 @@ library(randomForest)
 library(treemap)
 library(treemapify)
 options(warn=-1)
-library(pROC)
+library(ROSE)
+RNGversion("4.1.2")
+set.seed(12345)
+library(corrplot)
 ```
 
 ## 1. Project Overview. 
@@ -53,6 +56,7 @@ The data that we used was retrieved from two sources. Both data sources needed t
 - Lastly, we dropped any players that had a double position listed because it would mess up our position-specific analysis. 
 
 In its final form, the data contains some of the the following variables: 
+
 Salary (Salary): This variable measures the NBA player's salary for the 2021-2022 season
 : Data Type: numeric
 : Range/Levels: 13294-45780966
@@ -61,7 +65,7 @@ Rank (RK): This variable measures the player's rank in the season.
 : Data Type: numeric
 : Range/Levels: 1-605
 
-Position (POS): This variable indicates a player's position during the season.  
+Position (POS): This variable indicates a player's position during the season.
 : Data Type: categorical
 : Range/Levels: C, C-PF, PF, PF-SF, PG, PG-SG, SF, SF-SG, SG,SG-PG, SG-SF
 
@@ -84,6 +88,8 @@ Field Goals (FG): This variable measures the number of field goals that a player
 Effective Field Goal Percentage (eFPPerc): This variable measures the field goal percentage of a player, but takes into account that 3 pointers count more than 2 pointers. 
 : Data Type: numeric
 : Range/Levels: 1-2854
+
+
 
 The data ultimately has 530 player entries and each player has 29 attributes. 
 
@@ -165,6 +171,7 @@ merged.player.data$TOV <- as.numeric(merged.player.data$TOV)
 merged.player.data$PF <- as.numeric(merged.player.data$PF)
 merged.player.data$PTS <- as.numeric(merged.player.data$PTS)
 merged.player.data$salary <- as.numeric((merged.player.data$salary))
+merged.player.data <- na.omit(merged.player.data)
 ```
 ```{r, echo = FALSE}
 merged.player.data <- merged.player.data[merged.player.data$Pos != 'PF-SF' & merged.player.data$Pos != 'PF-SG' & merged.player.data$Pos != 'SF-SG' & merged.player.data$Pos != 'SG-PG' & merged.player.data$Pos != 'SG-SF' & merged.player.data$Pos != 'PG-SG', ]
@@ -176,6 +183,15 @@ Include plots and tables to show the ranges and distributions of the important v
 # 3. Analysis.
 
 To start our analysis, we first sought to visualize some of the most important variables such as points, assists, 3-pointers, and 2-pointers to understand at a high level how different positions perform within a game. 
+
+```{r}
+# Calculate the correlation coefficients between the target variable and all other variables
+cor.data <- merged.player.data[, -c(1,4)]
+cor_matrix <- cor(as.matrix(cor.data[,1]),as.matrix(cor.data[,-1]))
+
+# Print the correlation matrix
+corrplot(cor_matrix, method = 'color')
+```
 
 ### Salary
 Starting with a look at the most important variable, salary, we noticed that the data is very skewed, as seen in the histogram below. 
@@ -206,7 +222,7 @@ Based on the graph, Point Guards average more assists than any other position, m
 
 We then looked at how different positions perform based on two and three pointers. 
 
-```{r echo=FALSE, out.width="75%", out.height="75%", fig.cap = "Two and Three Point percentage by Position", fig.align = 'center', fig.pos = 'H'}
+```{r echo=FALSE, out.width="75%", out.height="75%", fig.cap = "Two and Three Point percentage by Position", fig.align = 'center'}
 ggplot(merged.player.data, aes(x=ThreePPerc, y=TwoPPerc, color = Pos)) +
     geom_point(alpha=0.8, size = 4) 
 ```
@@ -215,7 +231,7 @@ While there aren't very clear trends to see from this graph, one can see that ma
 
 Lastly for looking at position, we created a treemap to further visualize how different positions contribute to assists and points. 
 
-```{r echo=FALSE, out.width="75%", out.height="75%", fig.cap = "Assists by Position and Player", fig.align = 'center', fig.pos = 'H'}
+```{r echo=FALSE, out.width="75%", out.height="75%", fig.cap = "Assists by Position and Player", fig.align = 'center'}
 ggplot(merged.player.data, aes(area = AST, fill = Pos, label = Player,
                 subgroup = Pos)) +
   geom_treemap() +
@@ -226,7 +242,7 @@ ggplot(merged.player.data, aes(area = AST, fill = Pos, label = Player,
   scale_fill_brewer(palette = "Dark2")
 ```
 
-```{r echo=FALSE, out.width="75%", out.height="75%", fig.cap = "Points by Position and Player", fig.align = 'center', fig.pos = 'H'}
+```{r echo=FALSE, out.width="75%", out.height="75%", fig.cap = "Points by Position and Player", fig.align = 'center'}
 ggplot(merged.player.data, aes(area = PTS, fill = Pos, label = Player,
                 subgroup = Pos)) +
   geom_treemap() +
@@ -277,15 +293,18 @@ linear regression
 ```{r, echo = FALSE}
 lm.salary <- lm(log_salary ~ ., data = train.data)
 summary(lm.salary)
-lm.predicted <- predict(lm.salary, test.data, type = 'response')
-auc(test.data$log_salary, lm.predicted)
+lm.salary.pred <- predict(lm.salary, newdata=test.data, type="response")
+lm.pred <- predict(lm.salary, test.data)
+mse.lm <- mean((lm.pred - true.vals)^2)
+mse.lm
 ```
 
 ```{r}
 lm.salary.sig <- lm(log_salary ~ G + FTPerc + AST + BLK, data = train.data)
 summary(lm.salary.sig)
-lm.predicted.sig <- predict(lm.salary.sig, test.data, type = 'response')
-auc(test.data$log_salary, lm.predicted.sig)
+lm.sig.pred <- predict(lm.salary.sig, test.data)
+mse.sig <- mean((lm.pred - true.vals)^2)
+mse.sig
 ```
 
 ```{r, echo = FALSE}
@@ -297,8 +316,8 @@ text(tree.salary)
 
 ```{r, echo = FALSE}
 tree.pred <- predict(tree.salary, test.data)
-mse <- mean((tree.pred - true.vals)^2)
-mse
+mse.tree <- mean((tree.pred - true.vals)^2)
+mse.tree
 ```
 
 ```{r, echo = FALSE}
@@ -307,7 +326,7 @@ plot(cv.salary$size, cv.salary$dev, type="b")
 ```
 
 ```{r, echo = FALSE}
-best.size <- 3
+best.size <- 4
 pruned <- prune.tree(tree.salary, best = best.size)
 plot(pruned)
 text(pruned)
@@ -316,12 +335,11 @@ text(pruned)
 
 ```{r, echo = FALSE}
 prune.pred <- predict(pruned, test.data)
-mse <- mean((prune.pred - true.vals)^2)
-mse
+mse.prune <- mean((prune.pred - true.vals)^2)
+mse.prune
 ```
 
-The pruned model does not perform better than the unpruned model, as the mse was 1.112142 while the unpruned model had a mse of 1.068486. Therefore, we will stick with the unpruned model as the best version of the tree model. 
-
+The pruned model performs slightly better than the unpruned model, with the pruned model having a mean square error of ~0.3 less than that of the unpruned model. 
 
 ```{r, echo = FALSE}
 data<-merged.player.data
@@ -370,9 +388,7 @@ boost.pred<-predict(boost.salary, newdata=test.data, n.trees=5000)
 mean((boost.pred-true.vals)^2)
 ```
 
-```{r Random Forest, echo = False}
-train.data <- na.omit(train.data)
-test.data <- na.omit(test.data)
+```{r Random Forest, echo = FALSE}
 bag.salary<-randomForest(log_salary~., data=train.data, mtry=12, importance=TRUE)
 bag.pred<-predict(bag.salary, newdata=test.data)
 mean((bag.pred-true.vals)^2)
